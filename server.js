@@ -8,7 +8,10 @@ const initSqlJs = require('sql.js');
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const PORT       = 3000;
 const JWT_SECRET = 'scribeconnect_jwt_secret_change_in_production_2024';
-const DB_FILE    = path.join(__dirname, 'scribeconnect.db');
+const isVercel   = process.env.VERCEL === '1' || process.env.NOW_REGION !== undefined;
+const DB_FILE    = isVercel
+  ? path.join('/tmp', 'scribeconnect.db')
+  : path.join(__dirname, 'scribeconnect.db');
 const SALT_ROUNDS = 10;
 
 const MIME = {
@@ -28,13 +31,25 @@ let db;
 async function initDB() {
   const SQL = await initSqlJs();
 
+  if (isVercel) {
+    const bundledDbPath = path.join(__dirname, 'scribeconnect.db');
+    if (!fs.existsSync(DB_FILE) && fs.existsSync(bundledDbPath)) {
+      try {
+        fs.copyFileSync(bundledDbPath, DB_FILE);
+        console.log('📋 Copied bundled database to /tmp:', DB_FILE);
+      } catch (copyErr) {
+        console.error('Failed to copy database to /tmp:', copyErr);
+      }
+    }
+  }
+
   if (fs.existsSync(DB_FILE)) {
     const data = fs.readFileSync(DB_FILE);
     db = new SQL.Database(data);
     console.log('📂 Loaded existing database from', DB_FILE);
   } else {
     db = new SQL.Database();
-    console.log('🆕 Created new database');
+    console.log('🆕 Created new database at', DB_FILE);
   }
 
   // Create tables
@@ -64,8 +79,12 @@ async function initDB() {
 }
 
 function saveDB() {
-  const data = db.export();
-  fs.writeFileSync(DB_FILE, Buffer.from(data));
+  try {
+    const data = db.export();
+    fs.writeFileSync(DB_FILE, Buffer.from(data));
+  } catch (err) {
+    console.error('Failed to write database file:', err.message);
+  }
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -340,8 +359,21 @@ function serveStatic(req, res) {
   });
 }
 
-// ── HTTP SERVER ───────────────────────────────────────────────────────────────
-const server = http.createServer(async (req, res) => {
+// ── SERVERLESS HANDLER ────────────────────────────────────────────────────────
+let dbInitialized = false;
+let dbPromise = null;
+async function ensureDB() {
+  if (dbInitialized) return;
+  if (!dbPromise) {
+    dbPromise = initDB();
+  }
+  await dbPromise;
+  dbInitialized = true;
+}
+
+const handler = async (req, res) => {
+  await ensureDB();
+
   const { method, url } = req;
   const route = url.split('?')[0];
 
@@ -366,15 +398,21 @@ const server = http.createServer(async (req, res) => {
 
   // Static files
   serveStatic(req, res);
-});
+};
 
-// ── BOOT ──────────────────────────────────────────────────────────────────────
-initDB().then(() => {
-  server.listen(PORT, () => {
-    console.log(`\n🚀 ScribeConnect server running at http://localhost:${PORT}`);
-    console.log('   Auth endpoints: /api/signup  /api/login  /api/me  /api/logout\n');
+// ── BOOT (only when run directly) ─────────────────────────────────────────────
+if (require.main === module) {
+  initDB().then(() => {
+    const server = http.createServer(handler);
+    server.listen(PORT, () => {
+      console.log(`\n🚀 ScribeConnect server running at http://localhost:${PORT}`);
+      console.log('   Auth endpoints: /api/signup  /api/login  /api/me  /api/logout\n');
+    });
+  }).catch(err => {
+    console.error('❌ Failed to initialise database:', err);
+    process.exit(1);
   });
-}).catch(err => {
-  console.error('❌ Failed to initialise database:', err);
-  process.exit(1);
-});
+}
+
+// Export for Vercel Serverless
+module.exports = handler;
