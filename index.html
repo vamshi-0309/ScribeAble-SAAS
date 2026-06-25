@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScribeAble – Find Your Exam Scribe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a href="#main" class="skip-link">Skip to main content</a>
+
+<!-- ══════════════════════════════════════
+     LOGIN PAGE
+     ══════════════════════════════════════ -->
+<div id="login-page" role="main" aria-label="Login to ScribeAble">
+
+  <!-- Left panel -->
+  <div class="login-side" aria-hidden="true">
+    <div class="login-side-deco d1"></div>
+    <div class="login-side-deco d2"></div>
+    <div class="login-side-deco d3"></div>
+    <div class="login-brand">
+      <div class="login-brand-logo">
+        <div class="login-brand-icon">✍️</div>
+        <div class="login-brand-name">ScribeAble</div>
+      </div>
+      <h2 class="login-tagline">Exam support<br>for <span>every student.</span></h2>
+      <p class="login-desc">Find verified scribes and volunteers nearby — quickly, safely, and on your terms. Built for persons with disabilities.</p>
+      <div class="login-features">
+        <div class="login-feat"><div class="login-feat-dot"></div>Voice assistant for hands-free access</div>
+        <div class="login-feat"><div class="login-feat-dot"></div>GPS matching to scribes near you</div>
+        <div class="login-feat"><div class="login-feat-dot"></div>ISL, read-aloud, and motor support options</div>
+        <div class="login-feat"><div class="login-feat-dot"></div>Contact shared only after mutual consent</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right form panel -->
+  <div class="login-form-wrap">
+    <button class="theme-toggle-login" onclick="toggleTheme()" aria-label="Toggle dark/light mode" id="theme-btn-login">🌙</button>
+
+    <div class="login-box">
+      <h1 class="login-title">Welcome back</h1>
+      <p class="login-sub">Sign in or create your account to continue.</p>
+
+      <!-- Who are you? -->
+      <div role="group" aria-label="I am a...">
+        <p style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:9px">I am a...</p>
+        <div class="role-tabs" role="tablist">
+          <button class="role-tab active" role="tab" aria-selected="true" id="tab-seeker" onclick="switchRole('seeker')">🙋 Person seeking a scribe</button>
+          <button class="role-tab" role="tab" aria-selected="false" id="tab-volunteer" onclick="switchRole('volunteer')">✍️ Scribe / Volunteer</button>
+        </div>
+      </div>
+
+      <!-- Login / Signup tabs -->
+      <div class="auth-tabs" role="tablist" aria-label="Sign in or Sign up">
+        <button class="auth-tab active" role="tab" aria-selected="true" id="atab-login" onclick="switchAuth('login')">Sign In</button>
+        <button class="auth-tab" role="tab" aria-selected="false" id="atab-signup" onclick="switchAuth('signup')">Create Account</button>
+      </div>
+
+      <div id="error-banner" class="error-msg" role="alert">Please fill in all required fields.</div>
+
+      <!-- LOGIN FORM -->
+      <div class="login-panel-inner active" id="panel-login">
+        <div class="lfield">
+          <label for="login-email">Email address</label>
+          <div class="input-icon-wrap">
+            <span class="input-icon" aria-hidden="true">📧</span>
+            <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email" aria-required="true">
+          </div>
+        </div>
+        <div class="lfield">
+          <label for="login-pw">Password</label>
+          <div class="input-icon-wrap" style="position:relative">
+            <span class="input-icon" aria-hidden="true">🔒</span>
+            <input type="password" id="login-pw" placeholder="Your password" autocomplete="current-password" aria-required="true">
+            <button class="show-pw" onclick="togglePw('login-pw',this)" aria-label="Show or hide password">👁</button>
+          </div>
+        </div>
+        <a href="#" class="forgot" onclick="forgotPw(event)">Forgot password?</a>
+        <button class="login-btn" onclick="doLogin()" aria-label="Sign in to ScribeAble">Sign In →</button>
+        <button class="voice-login-btn" onclick="voiceLogin()" aria-label="Sign in using voice">🎙️ Sign in with Voice</button>
+        <div class="divider">or continue with</div>
+        <div class="social-btns">
+          <button class="social-btn" onclick="socialLogin('Google')" aria-label="Sign in with Google">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.4 30.2 0 24 0 14.7 0 6.7 5.5 2.9 13.5l7.8 6C12.4 13.2 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8C43.8 37.5 46.5 31.4 46.5 24.5z"/><path fill="#FBBC05" d="M10.7 28.5A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.1.7-4.5L2.4 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.5 10.5l8.2-6z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.3-7.7 2.3-6.2 0-11.5-4.2-13.3-9.9l-8 6.1C6.7 42.5 14.7 48 24 48z"/></svg>
+            Google
+          </button>
+          <button class="social-btn" onclick="socialLogin('Phone')" aria-label="Sign in with phone number">
+            📱 Phone OTP
+          </button>
+        </div>
+      </div>
+
+      <!-- SIGNUP FORM -->
+      <div class="login-panel-inner" id="panel-signup">
+        <div class="lfield">
+          <label for="su-name">Full name <span style="color:var(--teal)">*</span></label>
+          <div class="input-icon-wrap">
+            <span class="input-icon" aria-hidden="true">👤</span>
+            <input type="text" id="su-name" placeholder="Your full name" autocomplete="name" aria-required="true">
+          </div>
+        </div>
+        <div class="lfield">
+          <label for="su-email">Email address <span style="color:var(--teal)">*</span></label>
+          <div class="input-icon-wrap">
+            <span class="input-icon" aria-hidden="true">📧</span>
+            <input type="email" id="su-email" placeholder="you@email.com" autocomplete="email" aria-required="true">
+          </div>
+        </div>
+        <div class="lfield">
+          <label for="su-phone">Mobile number</label>
+          <div class="input-icon-wrap">
+            <span class="input-icon" aria-hidden="true">📱</span>
+            <input type="tel" id="su-phone" placeholder="+91 98765 43210" autocomplete="tel" inputmode="tel">
+          </div>
+        </div>
+        <div class="lfield">
+          <label for="su-pw">Create password <span style="color:var(--teal)">*</span></label>
+          <div class="input-icon-wrap" style="position:relative">
+            <span class="input-icon" aria-hidden="true">🔒</span>
+            <input type="password" id="su-pw" placeholder="Min. 8 characters" autocomplete="new-password" aria-required="true">
+            <button class="show-pw" onclick="togglePw('su-pw',this)" aria-label="Show or hide password">👁</button>
+          </div>
+        </div>
+        <button class="login-btn" onclick="doSignup()" aria-label="Create your ScribeAble account">Create Account →</button>
+        <button class="voice-login-btn" onclick="voiceLogin()" aria-label="Register using voice">🎙️ Register with Voice</button>
+      </div>
+
+      <div class="login-switch" id="auth-switch-text">
+        Don't have an account? <a onclick="switchAuth('signup')" tabindex="0">Create one free</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MAIN APP
+     ══════════════════════════════════════ -->
+<div id="app">
+
+<!-- A11Y BAR -->
+<div id="a11y-bar" role="toolbar" aria-label="Accessibility options">
+  <span>Accessibility:</span>
+  <button class="a11y-btn" onclick="setTextSize('normal')" id="sz-normal" aria-pressed="true">A Normal</button>
+  <button class="a11y-btn" onclick="setTextSize('lg')" id="sz-lg" aria-pressed="false">A+ Large</button>
+  <button class="a11y-btn" onclick="setTextSize('xl')" id="sz-xl" aria-pressed="false">A++ XL</button>
+  <button class="a11y-btn" onclick="toggleContrast()" id="btn-contrast" aria-pressed="false">High Contrast</button>
+  <button class="a11y-btn" onclick="readPage()" aria-label="Read page aloud">🔊 Read Page</button>
+  <button class="a11y-btn" onclick="stopReading()" aria-label="Stop reading">⏹ Stop</button>
+  <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn-app" aria-label="Toggle dark/light mode">🌙</button>
+  <div id="voice-status">
+    <div class="pulse" id="mic-pulse"></div>
+    <span id="mic-label">Mic off</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav role="navigation" aria-label="Main navigation">
+  <a href="#" class="logo" aria-label="ScribeAble home">
+    <div class="logo-icon" aria-hidden="true">✍️</div>
+    ScribeAble
+  </a>
+  <div class="nav-right">
+    <button class="nav-link" onclick="scrollToSection('#how')">How It Works</button>
+    <button class="nav-link" onclick="scrollToSection('#scribes-section')">Find Scribes</button>
+    <button class="nav-link nav-cta" onclick="openModal('seeker')">Find a Scribe</button>
+    <div class="nav-user">
+      <div class="nav-avatar" id="nav-avatar" aria-hidden="true">U</div>
+      <span id="nav-username" style="font-size:14px;color:var(--text2)"></span>
+    </div>
+    <button class="logout-btn" onclick="doLogout()" aria-label="Sign out">Sign out</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<main id="main">
+<section id="hero" aria-labelledby="hero-h">
+  <div class="badge">✦ Accessible Exam Support</div>
+  <h1 id="hero-h">Every student deserves<br>the right <span class="accent">exam support.</span></h1>
+  <p class="hero-sub">ScribeAble links persons with disabilities to verified scribes and volunteers nearby — respectfully, quickly, and on your terms.</p>
+  <div class="hero-btns" role="group" aria-label="Main actions">
+    <button class="btn-primary" onclick="openModal('seeker')">✍️ I Need a Scribe</button>
+    <button class="voice-big-btn" id="voice-main-btn" onclick="startVoiceFlow()" title="Click to start/stop voice assistant">🎙️ Use Voice Assistant</button>
+    <button class="btn-secondary" onclick="openModal('volunteer')">🙋 I Want to Volunteer</button>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats" role="region" aria-label="Platform statistics">
+  <div class="stat"><div class="stat-num">1,200+</div><div class="stat-lbl">Verified Scribes</div></div>
+  <div class="stat"><div class="stat-num">42</div><div class="stat-lbl">Cities Covered</div></div>
+  <div class="stat"><div class="stat-num">15+</div><div class="stat-lbl">Languages</div></div>
+  <div class="stat"><div class="stat-num">98%</div><div class="stat-lbl">Match Rate</div></div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section id="how" aria-labelledby="how-h">
+  <div class="section-inner">
+    <div class="section-tag">Process</div>
+    <h2 class="section-title" id="how-h">How ScribeAble works</h2>
+    <p class="section-sub">From request to confirmed scribe in under 5 minutes.</p>
+    <div class="steps" role="list">
+      <div class="step-card" role="listitem"><div class="step-num">STEP 01</div><div class="step-icon">🧑‍💼</div><div class="step-title">Choose your role</div><p class="step-desc">Sign in as a person seeking a scribe, or as a volunteer. Your interface adapts to your needs.</p></div>
+      <div class="step-card" role="listitem"><div class="step-num">STEP 02</div><div class="step-icon">📋</div><div class="step-title">Share your requirements</div><p class="step-desc">Tell us your exam date, subject, language, location, and what kind of support you need — by typing or voice.</p></div>
+      <div class="step-card" role="listitem"><div class="step-num">STEP 03</div><div class="step-icon">📍</div><div class="step-title">We match nearby scribes</div><p class="step-desc">GPS or pincode matching shows available scribes in your locality who fit your language and subject needs.</p></div>
+      <div class="step-card" role="listitem"><div class="step-num">STEP 04</div><div class="step-icon">🤝</div><div class="step-title">Connect and confirm</div><p class="step-desc">Send a request. The scribe accepts or declines. Contact details are shared only after both parties agree.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ACCESSIBILITY -->
+<section style="background:var(--bg2)" aria-labelledby="a11y-h">
+  <div class="section-inner">
+    <div class="section-tag">Built for everyone</div>
+    <h2 class="section-title" id="a11y-h">Accessibility is the core, not an afterthought</h2>
+    <p class="section-sub">Designed from the ground up for persons with visual, motor, hearing, and cognitive differences.</p>
+    <div class="a11y-grid" role="list">
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box teal">🔊</div><div><h3>Voice Assistant</h3><p>Fill any form completely by voice. The assistant reads questions aloud and records your spoken answers.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box violet">🖐️</div><div><h3>Sign Language Mode</h3><p>Scribes who know Indian Sign Language are flagged. Request ISL-aware support directly in your form.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box gold">👁️</div><div><h3>Screen Reader Ready</h3><p>All labels, buttons, and forms are fully compatible with NVDA, JAWS, and VoiceOver.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box teal">🔤</div><div><h3>Adjustable Text Size</h3><p>Switch between normal, large, and extra-large text from the bar at the top of every page.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box violet">🌓</div><div><h3>Dark &amp; Light Mode</h3><p>Toggle between dark and light themes instantly. Both modes meet WCAG AA contrast standards.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box gold">⌨️</div><div><h3>Full Keyboard Navigation</h3><p>Every feature reachable by Tab, Enter, and arrow keys — no mouse required.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box teal">🌐</div><div><h3>Multilingual Interface</h3><p>Switch to Hindi, Telugu, Marathi, Tamil, and more. Scribes are also matched by language preference.</p></div></div>
+      <div class="a11y-card" role="listitem"><div class="a11y-icon-box violet">📢</div><div><h3>Read-Aloud Scribes</h3><p>Filter for scribes willing to read exam questions aloud — essential for visual or reading disabilities.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- SCRIBES LISTING -->
+<section id="scribes-section" aria-labelledby="scribes-h">
+  <div class="section-inner">
+    <div class="section-tag">Available Now</div>
+    <h2 class="section-title" id="scribes-h">Scribes near you</h2>
+    <p class="section-sub">Filter by subject, language, or support type.</p>
+    <div class="filter-bar" role="group" aria-label="Filter scribes">
+      <button class="filter-chip active" onclick="filterScribes('all',this)" aria-pressed="true">All Scribes</button>
+      <button class="filter-chip" onclick="filterScribes('maths',this)" aria-pressed="false">Maths</button>
+      <button class="filter-chip" onclick="filterScribes('science',this)" aria-pressed="false">Science</button>
+      <button class="filter-chip" onclick="filterScribes('language',this)" aria-pressed="false">Language Papers</button>
+      <button class="filter-chip" onclick="filterScribes('isl',this)" aria-pressed="false">🖐 ISL Aware</button>
+      <button class="filter-chip" onclick="filterScribes('readaloud',this)" aria-pressed="false">🔊 Read-Aloud</button>
+      <button class="filter-chip" onclick="filterScribes('volunteer',this)" aria-pressed="false">Free Volunteers</button>
+    </div>
+    <div class="scribes-grid" id="scribes-grid" role="list">
+      <article class="scribe-card" data-tags="maths science readaloud" role="listitem"><div class="volunteer-badge">VERIFIED</div><div class="scribe-header"><div class="avatar teal">PS</div><div><div class="scribe-name">Priya Sharma</div><div class="scribe-loc"><span class="online-dot"></span> Online · Banjara Hills, Hyd</div></div></div><div class="tags"><span class="tag teal">Maths</span><span class="tag teal">Physics</span><span class="tag">English</span><span class="tag teal">🔊 Read-Aloud</span></div><div class="scribe-info"><div class="info-item"><strong>Hindi, English</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 4.9</span></strong>Rating</div><div class="info-item"><strong>3 km away</strong>Distance</div><div class="info-item"><strong class="price-badge">₹350/hr</strong>Rate</div></div><button class="request-btn" onclick="openRequestConfirm('Priya Sharma','₹350/hr','Banjara Hills')">Request Scribe</button></article>
+
+      <article class="scribe-card" data-tags="language isl volunteer" role="listitem"><div class="volunteer-badge" style="background:rgba(0,201,167,0.08);border-color:rgba(0,201,167,0.25);color:var(--teal)">FREE</div><div class="scribe-header"><div class="avatar violet">RN</div><div><div class="scribe-name">Rahul Nair</div><div class="scribe-loc"><span class="online-dot"></span> Online · Jubilee Hills, Hyd</div></div></div><div class="tags"><span class="tag violet">🖐 ISL</span><span class="tag teal">English</span><span class="tag">Malayalam</span><span class="tag">Hindi</span></div><div class="scribe-info"><div class="info-item"><strong>Hindi, English, Malayalam</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 4.8</span></strong>Rating</div><div class="info-item"><strong>5 km away</strong>Distance</div><div class="info-item"><strong class="price-badge" style="color:var(--teal)">Free</strong>Rate</div></div><button class="request-btn" onclick="openRequestConfirm('Rahul Nair','Free','Jubilee Hills')">Request Scribe</button></article>
+
+      <article class="scribe-card" data-tags="science maths readaloud" role="listitem"><div class="volunteer-badge">VERIFIED</div><div class="scribe-header"><div class="avatar gold">AR</div><div><div class="scribe-name">Ananya Reddy</div><div class="scribe-loc"><span class="online-dot"></span> Online · Madhapur, Hyd</div></div></div><div class="tags"><span class="tag teal">Chemistry</span><span class="tag teal">Biology</span><span class="tag teal">🔊 Read-Aloud</span><span class="tag">Telugu</span></div><div class="scribe-info"><div class="info-item"><strong>Telugu, English</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 5.0</span></strong>Rating</div><div class="info-item"><strong>2 km away</strong>Distance</div><div class="info-item"><strong class="price-badge">₹300/hr</strong>Rate</div></div><button class="request-btn" onclick="openRequestConfirm('Ananya Reddy','₹300/hr','Madhapur')">Request Scribe</button></article>
+
+      <article class="scribe-card" data-tags="language isl readaloud volunteer" role="listitem"><div class="volunteer-badge" style="background:rgba(0,201,167,0.08);border-color:rgba(0,201,167,0.25);color:var(--teal)">FREE</div><div class="scribe-header"><div class="avatar teal">MA</div><div><div class="scribe-name">Mohammed Ayaan</div><div class="scribe-loc"><span class="online-dot"></span> Online · Himayatnagar, Hyd</div></div></div><div class="tags"><span class="tag violet">🖐 ISL</span><span class="tag teal">🔊 Read-Aloud</span><span class="tag">Urdu</span><span class="tag">Hindi</span></div><div class="scribe-info"><div class="info-item"><strong>Urdu, Hindi, English</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 4.7</span></strong>Rating</div><div class="info-item"><strong>6 km away</strong>Distance</div><div class="info-item"><strong class="price-badge" style="color:var(--teal)">Free</strong>Rate</div></div><button class="request-btn" onclick="openRequestConfirm('Mohammed Ayaan','Free','Himayatnagar')">Request Scribe</button></article>
+
+      <article class="scribe-card" data-tags="maths science" role="listitem"><div class="volunteer-badge">VERIFIED</div><div class="scribe-header"><div class="avatar violet">SK</div><div><div class="scribe-name">Sneha Kulkarni</div><div class="scribe-loc">📴 Offline · Ameerpet, Hyd</div></div></div><div class="tags"><span class="tag teal">Eng. Maths</span><span class="tag">Marathi</span><span class="tag">Hindi</span></div><div class="scribe-info"><div class="info-item"><strong>Marathi, Hindi, English</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 4.6</span></strong>Rating</div><div class="info-item"><strong>8 km away</strong>Distance</div><div class="info-item"><strong class="price-badge">₹400/hr</strong>Rate</div></div><button class="request-btn" style="background:var(--bg);color:var(--muted);border:1px solid var(--border);cursor:not-allowed" disabled aria-disabled="true">Currently Offline</button></article>
+
+      <article class="scribe-card" data-tags="language readaloud" role="listitem"><div class="volunteer-badge">VERIFIED</div><div class="scribe-header"><div class="avatar gold">DM</div><div><div class="scribe-name">Divya Menon</div><div class="scribe-loc"><span class="online-dot"></span> Online · Kukatpally, Hyd</div></div></div><div class="tags"><span class="tag teal">🔊 Read-Aloud</span><span class="tag">Tamil</span><span class="tag">Malayalam</span><span class="tag">English</span></div><div class="scribe-info"><div class="info-item"><strong>Tamil, Malayalam, English</strong>Languages</div><div class="info-item"><strong><span class="rating">★ 4.9</span></strong>Rating</div><div class="info-item"><strong>7 km away</strong>Distance</div><div class="info-item"><strong class="price-badge">₹320/hr</strong>Rate</div></div><button class="request-btn" onclick="openRequestConfirm('Divya Menon','₹320/hr','Kukatpally')">Request Scribe</button></article>
+    </div>
+
+    <!-- Map -->
+    <div class="map-wrap" role="img" aria-label="Map of nearby scribes">
+      <div class="map-dots" aria-hidden="true">
+        <svg width="100%" height="100%" style="position:absolute;inset:0;opacity:.06"><defs><pattern id="g" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0L0 0 0 55" fill="none" stroke="currentColor" stroke-width=".5"/></pattern></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>
+        <div class="map-dot user" style="top:50%;left:50%"><div class="map-label">📍 You</div></div>
+        <div class="map-dot scr" style="top:38%;left:62%"><div class="map-label">Priya · 3km</div></div>
+        <div class="map-dot scr" style="top:55%;left:38%"><div class="map-label">Rahul · 5km</div></div>
+        <div class="map-dot scr" style="top:44%;left:46%"><div class="map-label">Ananya · 2km</div></div>
+        <div class="map-dot scr" style="top:63%;left:61%"><div class="map-label">Ayaan · 6km</div></div>
+        <div class="map-dot scr" style="top:33%;left:44%"><div class="map-label">Divya · 7km</div></div>
+      </div>
+      <div class="map-legend"><p>🟡 Your location &nbsp;|&nbsp; 🟢 Available scribes (pulsing)</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- VOLUNTEER -->
+<section id="volunteer" aria-labelledby="vol-h">
+  <div class="section-inner">
+    <div class="vol-grid">
+      <div>
+        <div class="section-tag">Give Back</div>
+        <h2 class="section-title" id="vol-h">Become a scribe volunteer</h2>
+        <p class="section-sub" style="max-width:100%;margin-bottom:24px">Your time can change someone's exam experience. Register as a volunteer or paid scribe and help students with disabilities appear for exams with confidence.</p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:11px;margin-bottom:28px">
+          <li style="display:flex;gap:11px;align-items:flex-start"><span style="color:var(--teal);font-size:17px">✓</span><span style="color:var(--muted)">Set your own availability and subject preferences</span></li>
+          <li style="display:flex;gap:11px;align-items:flex-start"><span style="color:var(--teal);font-size:17px">✓</span><span style="color:var(--muted)">Accept or decline requests — full control always</span></li>
+          <li style="display:flex;gap:11px;align-items:flex-start"><span style="color:var(--teal);font-size:17px">✓</span><span style="color:var(--muted)">Earn recognition or set your own hourly rate</span></li>
+          <li style="display:flex;gap:11px;align-items:flex-start"><span style="color:var(--teal);font-size:17px">✓</span><span style="color:var(--muted)">No prior experience needed</span></li>
+        </ul>
+        <button class="btn-primary" onclick="openModal('volunteer')">🙋 Register as Volunteer</button>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:28px">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:18px">Volunteer impact</h3>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="background:rgba(0,201,167,0.06);border:1px solid rgba(0,201,167,0.14);border-radius:var(--radius);padding:13px 16px;display:flex;justify-content:space-between;align-items:center"><span style="color:var(--muted);font-size:13px">Total volunteer hours given</span><span style="font-family:var(--font);font-size:20px;font-weight:700;color:var(--teal)">8,400 hrs</span></div>
+          <div style="background:rgba(124,92,252,0.06);border:1px solid rgba(124,92,252,0.14);border-radius:var(--radius);padding:13px 16px;display:flex;justify-content:space-between;align-items:center"><span style="color:var(--muted);font-size:13px">Students supported this year</span><span style="font-family:var(--font);font-size:20px;font-weight:700;color:var(--violet)">3,200</span></div>
+          <div style="background:rgba(255,184,48,0.06);border:1px solid rgba(255,184,48,0.14);border-radius:var(--radius);padding:13px 16px;display:flex;justify-content:space-between;align-items:center"><span style="color:var(--muted);font-size:13px">Average match time</span><span style="font-family:var(--font);font-size:20px;font-weight:700;color:var(--gold)">4.2 min</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer role="contentinfo">
+  <div class="footer-logo">✍️ ScribeAble</div>
+  <p class="footer-tagline">Making exam support accessible to every student, everywhere.</p>
+  <p class="footer-note">Built with ❤️ for the Scribe App Hackathon · Sample data · Contact details shared only after mutual consent</p>
+</footer>
+
+</div><!-- /app -->
+
+<!-- ══ MODAL: SEEKER ══ -->
+<div class="overlay" id="modal-seeker" role="dialog" aria-modal="true" aria-labelledby="mst" onclick="closeModalOnBg(event,'modal-seeker')">
+  <div class="modal">
+    <div class="modal-header"><h2 class="modal-title" id="mst">Find Your Scribe</h2><button class="modal-close" onclick="closeModal('modal-seeker')" aria-label="Close">✕</button></div>
+    <div class="modal-body">
+      <div class="step-indicator" id="seeker-progress"><div class="step-dot active" id="sdot-1"></div><div class="step-dot" id="sdot-2"></div><div class="step-dot" id="sdot-3"></div><div class="step-dot" id="sdot-4"></div><div class="step-dot" id="sdot-5"></div></div>
+
+      <div class="modal-step active" id="seeker-step-1">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:5px">What kind of support do you need?</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">This helps us match you with the right scribe. Your privacy is fully respected.</p>
+        <button class="voice-btn-inline" onclick="voiceFill('support')" id="voice-step1">🎙️ Use Voice Instead</button>
+        <div class="checkbox-group" role="group" aria-label="Select your support requirements">
+          <label class="checkbox-item"><input type="checkbox" id="need-write"> <span>✍️ Help Writing Answers</span></label>
+          <label class="checkbox-item"><input type="checkbox" id="need-read"> <span>🔊 Questions Read Aloud</span></label>
+          <label class="checkbox-item"><input type="checkbox" id="need-isl"> <span>🖐️ Sign Language (ISL)</span></label>
+          <label class="checkbox-item"><input type="checkbox" id="need-motor"> <span>🦾 Motor Assistance</span></label>
+          <label class="checkbox-item"><input type="checkbox" id="need-visual"> <span>👁️ Visual Impairment</span></label>
+          <label class="checkbox-item"><input type="checkbox" id="need-cognitive"> <span>🧠 Cognitive Support</span></label>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label for="other-needs">Any other specific requirements?</label>
+          <textarea id="other-needs" placeholder="E.g., 'Scribe should speak slowly and clearly'"></textarea>
+        </div>
+        <div class="nav-btns"><div></div><button class="btn-next" onclick="seekerStep(2)">Next →</button></div>
+      </div>
+
+      <div class="modal-step" id="seeker-step-2">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:5px">Tell us about your exam</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">We'll find scribes who know your subject and are available on your date.</p>
+        <button class="voice-btn-inline" onclick="voiceFill('exam')" id="voice-step2">🎙️ Fill by Voice</button>
+        <div class="field-row">
+          <div class="field"><label for="exam-date">Exam Date <span class="req">*</span></label><input type="date" id="exam-date"></div>
+          <div class="field"><label for="exam-time">Start Time <span class="req">*</span></label><input type="time" id="exam-time"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="exam-duration">Duration</label><select id="exam-duration"><option>1 hour</option><option>2 hours</option><option selected>3 hours</option><option>4 hours</option></select></div>
+          <div class="field"><label for="exam-subject">Subject <span class="req">*</span></label><select id="exam-subject"><option value="">Select...</option><option>Engineering Mathematics</option><option>Physics</option><option>Chemistry</option><option>Biology</option><option>English Literature</option><option>Hindi</option><option>Telugu</option><option>History</option><option>Economics</option><option>Computer Science</option><option>Other</option></select></div>
+        </div>
+        <div class="field"><label for="exam-board">Exam Board / University</label><input type="text" id="exam-board" placeholder="e.g., JNTU, CBSE, Osmania University"></div>
+        <div class="nav-btns"><button class="btn-back" onclick="seekerStep(1)">← Back</button><button class="btn-next" onclick="seekerStep(3)">Next →</button></div>
+      </div>
+
+      <div class="modal-step" id="seeker-step-3">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:5px">Where and in which language?</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">We'll match scribes near your exam venue.</p>
+        <button class="voice-btn-inline" onclick="voiceFill('location')" id="voice-step3">🎙️ Say Your Location</button>
+        <div class="field"><label for="exam-location">Exam Venue / Area <span class="req">*</span></label><input type="text" id="exam-location" placeholder="e.g., Banjara Hills, Hyderabad"></div>
+        <div class="field-row">
+          <div class="field"><label for="exam-city">City</label><select id="exam-city"><option>Hyderabad</option><option>Mumbai</option><option>Delhi</option><option>Bengaluru</option><option>Chennai</option><option>Kolkata</option><option>Pune</option><option>Other</option></select></div>
+          <div class="field"><label for="exam-pincode">Pincode</label><input type="text" id="exam-pincode" placeholder="500034" maxlength="6" inputmode="numeric"></div>
+        </div>
+        <div class="field"><label for="pref-lang">Preferred Language <span class="req">*</span></label><select id="pref-lang"><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Marathi</option><option>Malayalam</option><option>Kannada</option><option>Bengali</option><option>Urdu</option><option>English + Hindi</option></select></div>
+        <button class="a11y-btn" style="width:100%;padding:11px;border-radius:var(--radius);margin-top:4px" onclick="getGPS()">📍 Detect My Location via GPS</button>
+        <div class="nav-btns"><button class="btn-back" onclick="seekerStep(2)">← Back</button><button class="btn-next" onclick="seekerStep(4)">Next →</button></div>
+      </div>
+
+      <div class="modal-step" id="seeker-step-4">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:5px">What's your budget?</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Scribes set their own rates. Free volunteer scribes are also available.</p>
+        <label class="checkbox-item" style="margin-bottom:14px;cursor:pointer"><input type="checkbox" id="free-only" onchange="toggleFreeOnly(this)"> <span>💚 Show me only free volunteers</span></label>
+        <div id="budget-section">
+          <div class="price-display" id="price-display" aria-live="polite">Up to ₹500 / hour</div>
+          <input type="range" min="100" max="1000" step="50" value="500" id="budget-slider" aria-label="Maximum hourly budget" oninput="updatePrice(this.value)">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:5px"><span>₹100/hr</span><span>₹1000/hr</span></div>
+        </div>
+        <div class="field" style="margin-top:18px"><label for="payment-mode">Payment Preference</label><select id="payment-mode"><option>UPI (GPay, PhonePe)</option><option>Cash on day</option><option>Bank Transfer</option><option>No preference</option></select></div>
+        <div class="nav-btns"><button class="btn-back" onclick="seekerStep(3)">← Back</button><button class="btn-next" onclick="seekerStep(5)">Next →</button></div>
+      </div>
+
+      <div class="modal-step" id="seeker-step-5">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:5px">Review your request</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Looks good? Submit and we'll show matched scribes immediately.</p>
+        <div class="confirmation-card"><div class="conf-row"><span class="conf-label">Support needed</span><span class="conf-value" id="rev-support">—</span></div><div class="conf-row"><span class="conf-label">Subject</span><span class="conf-value" id="rev-subject">—</span></div><div class="conf-row"><span class="conf-label">Date &amp; Time</span><span class="conf-value" id="rev-datetime">—</span></div><div class="conf-row"><span class="conf-label">Location</span><span class="conf-value" id="rev-location">—</span></div><div class="conf-row"><span class="conf-label">Language</span><span class="conf-value" id="rev-lang">—</span></div><div class="conf-row"><span class="conf-label">Budget</span><span class="conf-value" id="rev-budget">—</span></div></div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">✅ Your personal information is never shared publicly. Contact details are only revealed after a scribe confirms.</p>
+        <button class="btn-submit" onclick="submitRequest()">Find My Scribe →</button>
+        <div class="nav-btns" style="margin-top:0;padding-top:10px"><button class="btn-back" onclick="seekerStep(4)">← Edit</button><div></div></div>
+      </div>
+
+      <div class="modal-step" id="seeker-step-6">
+        <div class="success-screen" aria-live="polite">
+          <div class="success-icon">🎉</div>
+          <div class="success-title">Request Sent!</div>
+          <p class="success-sub">We've notified <strong style="color:var(--teal)">4 nearby scribes</strong> matching your requirements. You'll receive a response within 15 minutes.</p>
+          <div class="confirmation-card"><div class="conf-row"><span class="conf-label">Request ID</span><span class="conf-value" style="color:var(--teal)">#SC-2024-08471</span></div><div class="conf-row"><span class="conf-label">Scribes notified</span><span class="conf-value">4</span></div><div class="conf-row"><span class="conf-label">Est. response time</span><span class="conf-value">~15 minutes</span></div></div>
+          <button class="btn-primary" style="width:100%;justify-content:center" onclick="closeModal('modal-seeker')">View Matched Scribes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: VOLUNTEER ══ -->
+<div class="overlay" id="modal-volunteer" role="dialog" aria-modal="true" aria-labelledby="mvt" onclick="closeModalOnBg(event,'modal-volunteer')">
+  <div class="modal">
+    <div class="modal-header"><h2 class="modal-title" id="mvt">Register as a Scribe</h2><button class="modal-close" onclick="closeModal('modal-volunteer')" aria-label="Close">✕</button></div>
+    <div class="modal-body">
+      <div class="step-indicator"><div class="step-dot active" id="vdot-1"></div><div class="step-dot" id="vdot-2"></div><div class="step-dot" id="vdot-3"></div></div>
+      <div class="modal-step active" id="vol-step-1">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:14px">Are you volunteering or a paid scribe?</h3>
+        <div class="role-cards">
+          <div class="role-card" onclick="selectVolType(this,'free')" role="button" tabindex="0"><div class="role-emoji">💚</div><h3>Free Volunteer</h3><p>Give your time as a social contribution.</p></div>
+          <div class="role-card" onclick="selectVolType(this,'paid')" role="button" tabindex="0"><div class="role-emoji">💼</div><h3>Paid Scribe</h3><p>Set your own hourly rate.</p></div>
+        </div>
+        <div class="field"><label for="vol-name">Full Name <span class="req">*</span></label><input type="text" id="vol-name" placeholder="Your name as shown to students"></div>
+        <div class="field-row"><div class="field"><label for="vol-area">Your Area</label><input type="text" id="vol-area" placeholder="e.g., Banjara Hills, Hyderabad"></div><div class="field"><label for="vol-pincode">Pincode</label><input type="text" id="vol-pincode" placeholder="500034" maxlength="6" inputmode="numeric"></div></div>
+        <div class="nav-btns"><div></div><button class="btn-next" onclick="volStep(2)">Next →</button></div>
+      </div>
+      <div class="modal-step" id="vol-step-2">
+        <h3 style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:14px">Your skills and availability</h3>
+        <div class="field"><label>Subjects you can scribe for</label><div class="checkbox-group" role="group"><label class="checkbox-item"><input type="checkbox"> <span>Maths</span></label><label class="checkbox-item"><input type="checkbox"> <span>Physics</span></label><label class="checkbox-item"><input type="checkbox"> <span>Chemistry</span></label><label class="checkbox-item"><input type="checkbox"> <span>Biology</span></label><label class="checkbox-item"><input type="checkbox"> <span>English</span></label><label class="checkbox-item"><input type="checkbox"> <span>Hindi</span></label><label class="checkbox-item"><input type="checkbox"> <span>Social Science</span></label><label class="checkbox-item"><input type="checkbox"> <span>Any Subject</span></label></div></div>
+        <div class="field" style="margin-top:14px"><label>Special support abilities</label><div class="checkbox-group" role="group"><label class="checkbox-item"><input type="checkbox"> <span>🔊 Read questions aloud</span></label><label class="checkbox-item"><input type="checkbox"> <span>🖐️ Indian Sign Language</span></label><label class="checkbox-item"><input type="checkbox"> <span>🧠 Cognitive support</span></label><label class="checkbox-item"><input type="checkbox"> <span>🦾 Motor assistance</span></label></div></div>
+        <div class="field" style="margin-top:14px"><label for="vol-langs">Languages you speak</label><input type="text" id="vol-langs" placeholder="e.g., English, Hindi, Telugu"></div>
+        <div class="nav-btns"><button class="btn-back" onclick="volStep(1)">← Back</button><button class="btn-next" onclick="volStep(3)">Next →</button></div>
+      </div>
+      <div class="modal-step" id="vol-step-3">
+        <div class="success-screen" aria-live="polite">
+          <div class="success-icon">✅</div>
+          <div class="success-title">You're registered!</div>
+          <p class="success-sub">Thank you for joining ScribeAble. Students in your area will now be able to find and request you.</p>
+          <div class="confirmation-card"><div class="conf-row"><span class="conf-label">Profile ID</span><span class="conf-value" style="color:var(--teal)">#VOL-7842</span></div><div class="conf-row"><span class="conf-label">Status</span><span class="conf-value">Pending verification (24 hrs)</span></div><div class="conf-row"><span class="conf-label">Visible to</span><span class="conf-value">Students within 10 km</span></div></div>
+          <button class="btn-primary" style="width:100%;justify-content:center" onclick="closeModal('modal-volunteer')">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: CONFIRM ══ -->
+<div class="overlay" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="mct" onclick="closeModalOnBg(event,'modal-confirm')">
+  <div class="modal">
+    <div class="modal-header"><h2 class="modal-title" id="mct">Send Scribe Request</h2><button class="modal-close" onclick="closeModal('modal-confirm')" aria-label="Close">✕</button></div>
+    <div class="modal-body" id="confirm-body"></div>
+  </div>
+</div>
+
+<!-- VOICE TOAST -->
+<div id="voice-toast" role="status" aria-live="polite">
+  <div class="toast-pulse"></div>
+  <span id="toast-msg">Listening...</span>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

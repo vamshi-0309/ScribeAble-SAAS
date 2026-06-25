@@ -1,0 +1,14 @@
+{
+  "name": "scribeconnect",
+  "version": "1.0.0",
+  "description": "Find Your Exam Scribe – Accessible support platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "sql.js": "^1.12.0"
+  }
+}
