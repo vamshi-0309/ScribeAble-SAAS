@@ -1,5 +1,7 @@
-// Local development only — Vercel does NOT use this file
-// Vercel serves static files from root and runs api/server.js for /api/*
-if (require.main === module) {
-  require('./api/server.js');
-}
+// Local development only — not used by Vercel
+const app  = require('./api/index.js');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`\n🚀 ScribeConnect running at http://localhost:${PORT}`);
+  console.log('   API: /api/signup  /api/login  /api/me  /api/logout\n');
+});
