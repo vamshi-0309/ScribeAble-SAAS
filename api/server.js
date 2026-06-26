@@ -88,113 +88,249 @@ function expiresAt30Days() {
 
 // POST /api/signup
 async function handleSignup(req, res) {
-  const { name, email, password } = await parseBody(req);
+  try {
+    const { name, full_name, email, password, mobile, role } = await parseBody(req);
+    const finalName = (full_name || name || '').trim();
+    const finalEmail = (email || '').trim().toLowerCase();
+    const finalMobile = (mobile || '').trim();
+    const finalRole = (role || 'seeker').trim();
 
-  if (!name || !email || !password)
-    return jsonResponse(res, 400, { error: 'Name, email and password are required.' });
-  if (!email.includes('@'))
-    return jsonResponse(res, 400, { error: 'Please enter a valid email address.' });
-  if (password.length < 8)
-    return jsonResponse(res, 400, { error: 'Password must be at least 8 characters.' });
+    if (!finalName)
+      return jsonResponse(res, 400, { error: 'Full name is required.' });
+    if (!finalEmail)
+      return jsonResponse(res, 400, { error: 'Email address is required.' });
+    if (!finalEmail.includes('@'))
+      return jsonResponse(res, 400, { error: 'Please enter a valid email address.' });
+    if (!password)
+      return jsonResponse(res, 400, { error: 'Password is required.' });
+    if (password.length < 8)
+      return jsonResponse(res, 400, { error: 'Password must be at least 8 characters.' });
 
-  // Check existing user
-  const { data: existing } = await supabase
-    .from('users')
-    .select('id')
-    .ilike('email', email.trim())
-    .maybeSingle();
+    // Check existing user
+    const { data: existing, error: checkErr } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('email', finalEmail)
+      .maybeSingle();
 
-  if (existing)
-    return jsonResponse(res, 409, { error: 'An account with this email already exists.' });
+    if (checkErr) {
+      console.error('Database check error during signup:', checkErr);
+      return jsonResponse(res, 500, { error: `Database error during verification: ${checkErr.message}` });
+    }
 
-  const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+    if (existing)
+      return jsonResponse(res, 409, { error: 'An account with this email already exists.' });
 
-  const { data: user, error: insertErr } = await supabase
-    .from('users')
-    .insert({ name: name.trim(), email: email.trim().toLowerCase(), password_hash })
-    .select('id, name, email')
-    .single();
+    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-  if (insertErr || !user)
-    return jsonResponse(res, 500, { error: 'Failed to create account. Please try again.' });
+    const { data: user, error: insertErr } = await supabase
+      .from('users')
+      .insert({
+        full_name: finalName,
+        email: finalEmail,
+        password: password_hash,
+        mobile: finalMobile,
+        role: finalRole
+      })
+      .select('id, full_name, email')
+      .single();
 
-  const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-  const expires = expiresAt30Days();
+    if (insertErr || !user) {
+      console.error('Database insert error during signup:', insertErr);
+      return jsonResponse(res, 500, { error: `Failed to create account: ${insertErr ? insertErr.message : 'Database returned no data.'}` });
+    }
 
-  await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+    const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    const expires = expiresAt30Days();
 
-  console.log(`✅ New user: ${user.email}`);
-  return jsonResponse(res, 201, { token, user: { id: user.id, name: user.name, email: user.email } });
+    const { error: sessionErr } = await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+
+    if (sessionErr) {
+      console.error('Database session insert error during signup:', sessionErr);
+      return jsonResponse(res, 500, { error: `Account created, but failed to start session: ${sessionErr.message}` });
+    }
+
+    console.log(`✅ New user: ${user.email}`);
+    return jsonResponse(res, 201, { token, user: { id: user.id, name: user.full_name, email: user.email } });
+  } catch (err) {
+    console.error('Catch block error in handleSignup:', err);
+    return jsonResponse(res, 500, { error: `Internal server error: ${err.message || err}` });
+  }
 }
 
 // POST /api/login
 async function handleLogin(req, res) {
-  const { email, password } = await parseBody(req);
+  try {
+    const { email, password } = await parseBody(req);
 
-  if (!email || !password)
-    return jsonResponse(res, 400, { error: 'Email and password are required.' });
+    if (!email || !password)
+      return jsonResponse(res, 400, { error: 'Email and password are required.' });
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id, name, email, password_hash')
-    .ilike('email', email.trim())
-    .maybeSingle();
+    const { data: user, error: fetchErr } = await supabase
+      .from('users')
+      .select('id, full_name, email, password')
+      .ilike('email', email.trim())
+      .maybeSingle();
 
-  if (!user)
-    return jsonResponse(res, 401, { error: 'No account found with this email.' });
+    if (fetchErr) {
+      console.error('Login database fetch error:', fetchErr);
+      return jsonResponse(res, 500, { error: `Database error during login: ${fetchErr.message}` });
+    }
 
-  const match = await bcrypt.compare(password, user.password_hash);
-  if (!match)
-    return jsonResponse(res, 401, { error: 'Incorrect password. Please try again.' });
+    if (!user)
+      return jsonResponse(res, 401, { error: 'No account found with this email.' });
 
-  // Clear expired sessions
-  await supabase.from('sessions').delete().lt('expires_at', new Date().toISOString());
+    const match = await bcrypt.compare(password, user.password);
+    if (!match)
+      return jsonResponse(res, 401, { error: 'Incorrect password. Please try again.' });
 
-  const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-  const expires = expiresAt30Days();
+    // Clear expired sessions
+    await supabase.from('sessions').delete().lt('expires_at', new Date().toISOString());
 
-  await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+    const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    const expires = expiresAt30Days();
 
-  console.log(`🔑 Login: ${user.email}`);
-  return jsonResponse(res, 200, { token, user: { id: user.id, name: user.name, email: user.email } });
+    const { error: sessionErr } = await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+
+    if (sessionErr) {
+      console.error('Database session insert error during login:', sessionErr);
+      return jsonResponse(res, 500, { error: `Login succeeded, but session establishment failed: ${sessionErr.message}` });
+    }
+
+    console.log(`🔑 Login: ${user.email}`);
+    return jsonResponse(res, 200, { token, user: { id: user.id, name: user.full_name, email: user.email } });
+  } catch (err) {
+    console.error('Catch block error in handleLogin:', err);
+    return jsonResponse(res, 500, { error: `Internal server error: ${err.message || err}` });
+  }
 }
 
 // GET /api/me
 async function handleMe(req, res) {
-  const token = getBearerToken(req);
-  if (!token) return jsonResponse(res, 401, { error: 'No token provided.' });
+  try {
+    const token = getBearerToken(req);
+    if (!token) return jsonResponse(res, 401, { error: 'No token provided.' });
 
-  const payload = verifyToken(token);
-  if (!payload)  return jsonResponse(res, 401, { error: 'Invalid or expired token.' });
+    const payload = verifyToken(token);
+    if (!payload)  return jsonResponse(res, 401, { error: 'Invalid or expired token.' });
 
-  const { data: session } = await supabase
-    .from('sessions')
-    .select('id')
-    .eq('token', token)
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
+    const { data: session, error: sessionErr } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
 
-  if (!session)  return jsonResponse(res, 401, { error: 'Session expired. Please log in again.' });
+    if (sessionErr) {
+      console.error('Session verify error:', sessionErr);
+      return jsonResponse(res, 500, { error: `Session verification error: ${sessionErr.message}` });
+    }
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id, name, email')
-    .eq('id', payload.userId)
-    .maybeSingle();
+    if (!session)  return jsonResponse(res, 401, { error: 'Session expired. Please log in again.' });
 
-  if (!user) return jsonResponse(res, 401, { error: 'User not found.' });
+    const { data: user, error: userErr } = await supabase
+      .from('users')
+      .select('id, full_name, email')
+      .eq('id', payload.userId)
+      .maybeSingle();
 
-  return jsonResponse(res, 200, { user: { id: user.id, name: user.name, email: user.email } });
+    if (userErr) {
+      console.error('User fetch error in verify:', userErr);
+      return jsonResponse(res, 500, { error: `User profile fetch error: ${userErr.message}` });
+    }
+
+    if (!user) return jsonResponse(res, 401, { error: 'User not found.' });
+
+    return jsonResponse(res, 200, { user: { id: user.id, name: user.full_name, email: user.email } });
+  } catch (err) {
+    console.error('Catch block error in handleMe:', err);
+    return jsonResponse(res, 500, { error: `Internal server error: ${err.message || err}` });
+  }
 }
 
 // POST /api/logout
 async function handleLogout(req, res) {
-  const token = getBearerToken(req);
-  if (token) {
-    await supabase.from('sessions').delete().eq('token', token);
-    console.log('👋 User logged out');
+  try {
+    const token = getBearerToken(req);
+    if (token) {
+      await supabase.from('sessions').delete().eq('token', token);
+      console.log('👋 User logged out');
+    }
+    return jsonResponse(res, 200, { message: 'Logged out successfully.' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    return jsonResponse(res, 500, { error: `Internal server error during logout: ${err.message || err}` });
   }
-  return jsonResponse(res, 200, { message: 'Logged out successfully.' });
+}
+
+// GET /api/config
+async function handleConfig(req, res) {
+  return jsonResponse(res, 200, {
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseKey: process.env.SUPABASE_ANON_KEY
+  });
+}
+
+// POST /api/social-login
+async function handleSocialLogin(req, res) {
+  try {
+    const { email, full_name, role } = await parseBody(req);
+    const finalEmail = (email || '').trim().toLowerCase();
+    const finalName = (full_name || 'Google User').trim();
+    const finalRole = (role || 'seeker').trim();
+
+    if (!finalEmail) {
+      return jsonResponse(res, 400, { error: 'Email is required.' });
+    }
+
+    // Check if user exists
+    let { data: user, error: fetchErr } = await supabase
+      .from('users')
+      .select('id, full_name, email')
+      .ilike('email', finalEmail)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error('Social login fetch error:', fetchErr);
+      return jsonResponse(res, 500, { error: `Database query failed: ${fetchErr.message}` });
+    }
+
+    if (!user) {
+      // Create user if they don't exist
+      const generatedPassword = await bcrypt.hash(Math.random().toString(36).substring(2, 15), SALT_ROUNDS);
+      const { data: newUser, error: insertErr } = await supabase
+        .from('users')
+        .insert({
+          full_name: finalName,
+          email: finalEmail,
+          password: generatedPassword,
+          role: finalRole,
+          mobile: ''
+        })
+        .select('id, full_name, email')
+        .single();
+
+      if (insertErr || !newUser) {
+        console.error('Social login insert error:', insertErr);
+        return jsonResponse(res, 500, { error: `Failed to create user account: ${insertErr ? insertErr.message : 'Database error'}` });
+      }
+      user = newUser;
+    }
+
+    const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    const expires = expiresAt30Days();
+    const { error: sessionErr } = await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+
+    if (sessionErr) {
+      console.error('Social login session insert error:', sessionErr);
+      return jsonResponse(res, 500, { error: `Social login succeeded, but session establishment failed: ${sessionErr.message}` });
+    }
+
+    return jsonResponse(res, 200, { token, user: { id: user.id, name: user.full_name, email: user.email } });
+  } catch (err) {
+    console.error('Social login catch block error:', err);
+    return jsonResponse(res, 500, { error: `Internal server error during social login: ${err.message || err}` });
+  }
 }
 
 // POST /api/assistant
@@ -293,11 +429,13 @@ const handler = async (req, res) => {
   }
 
   try {
-    if (method === 'POST' && route === '/api/signup')    return await handleSignup(req, res);
-    if (method === 'POST' && route === '/api/login')     return await handleLogin(req, res);
-    if (method === 'GET'  && route === '/api/me')        return await handleMe(req, res);
-    if (method === 'POST' && route === '/api/logout')    return await handleLogout(req, res);
-    if (method === 'POST' && route === '/api/assistant') return await handleAssistant(req, res);
+    if (method === 'POST' && route === '/api/signup')       return await handleSignup(req, res);
+    if (method === 'POST' && route === '/api/login')        return await handleLogin(req, res);
+    if (method === 'GET'  && route === '/api/me')           return await handleMe(req, res);
+    if (method === 'POST' && route === '/api/logout')       return await handleLogout(req, res);
+    if (method === 'GET'  && route === '/api/config')       return await handleConfig(req, res);
+    if (method === 'POST' && route === '/api/social-login') return await handleSocialLogin(req, res);
+    if (method === 'POST' && route === '/api/assistant')    return await handleAssistant(req, res);
   } catch (err) {
     console.error('Handler error:', err);
     return jsonResponse(res, 500, { error: 'Internal server error.' });

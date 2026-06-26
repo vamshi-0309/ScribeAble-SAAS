@@ -7,8 +7,59 @@ function getToken()        { return localStorage.getItem('sc_token'); }
 function setToken(t)       { localStorage.setItem('sc_token', t); }
 function clearToken()      { localStorage.removeItem('sc_token'); }
 
+let supabaseClient = null;
+
+async function initSupabase() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const config = await res.json();
+      if (config.supabaseUrl && config.supabaseKey) {
+        supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+        
+        // Listen for redirect back from OAuth
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+          if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+            const user = session.user;
+            try {
+              const resLogin = await fetch('/api/social-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: user.email,
+                  full_name: user.user_metadata.full_name || user.user_metadata.name || 'Google User',
+                  role: currentRole
+                })
+              });
+              if (resLogin.ok) {
+                const data = await resLogin.json();
+                setToken(data.token);
+                launchApp(data.user.name);
+                
+                // Clear the hash fragment from address bar
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Sign out of Supabase client session so it doesn't auto-login on reload
+                await supabaseClient.auth.signOut();
+              } else {
+                const errData = await resLogin.json();
+                showError(errData.error || 'Failed to link Google account.');
+              }
+            } catch (e) {
+              showError('Server connection error during Google login.');
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Supabase initialization failed:', e);
+  }
+}
+
 // ── BOOT: restore session on page load ───
 window.addEventListener('DOMContentLoaded', async () => {
+  await initSupabase();
   // ── Restore text size from localStorage ──
   const savedSize = localStorage.getItem('sc_textsize') || 'normal';
   applyTextSize(savedSize, false); // false = no TTS on restore
@@ -47,6 +98,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Try to restore session
   const token = getToken();
   if (token) {
+    const lp = document.getElementById('login-page');
+    if (lp) lp.style.display = 'none';
     try {
       const res = await fetch('/api/me', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -96,6 +149,7 @@ function switchRole(role) {
   speak('You selected: ' + (role === 'seeker' ? 'Person seeking a scribe' : 'Scribe or volunteer'));
 }
 
+// ── HELPERS ───────────────────────────
 function switchAuth(mode) {
   currentAuth = mode;
   document.getElementById('atab-login').classList.toggle('active', mode === 'login');
@@ -150,7 +204,9 @@ async function doLogin() {
 async function doSignup() {
   const name = document.getElementById('su-name').value.trim();
   const email = document.getElementById('su-email').value.trim();
+  const phone = document.getElementById('su-phone').value.trim();
   const password = document.getElementById('su-pw').value;
+  
   if (!name || !email || !password) {
     showError('Please fill in all required fields.');
     return;
@@ -168,7 +224,13 @@ async function doSignup() {
     const res = await fetch('/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({
+        full_name: name,
+        email: email,
+        mobile: phone,
+        password: password,
+        role: currentRole
+      })
     });
     const data = await res.json();
     if (res.ok) {
@@ -231,11 +293,32 @@ function forgotPw(e) {
 }
 
 function socialLogin(type) {
-  speak('Signing in with ' + type + '. Please wait.');
-  setTimeout(() => {
-    // Demo: show error since OAuth not wired to backend yet
-    showError('Social login coming soon. Please use email & password.');
-  }, 600);
+  if (type === 'Google') {
+    loginWithGoogle();
+  } else {
+    speak('Signing in with ' + type + '. Please wait.');
+    setTimeout(() => {
+      // Demo: show error since OAuth not wired to backend yet
+      showError('Social login coming soon. Please use email & password.');
+    }, 600);
+  }
+}
+
+async function loginWithGoogle() {
+  if (!supabaseClient) {
+    showError('Database connection initializing. Please try again in a moment.');
+    return;
+  }
+  speak('Redirecting to Google Sign-In...');
+  const { data, error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin
+    }
+  });
+  if (error) {
+    showError(error.message);
+  }
 }
 
 function voiceLogin() {
