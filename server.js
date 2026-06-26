@@ -1,4 +1,5 @@
-// Delegates to api/server.js for local dev (npm start)
-// Also exports the handler so Vercel can use this file if it picks it up
-const handler = require('./api/server.js');
-module.exports = handler;
+// Local development only — Vercel does NOT use this file
+// Vercel serves static files from root and runs api/server.js for /api/*
+if (require.main === module) {
+  require('./api/server.js');
+}
