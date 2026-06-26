@@ -203,5 +203,18 @@ app.post('/api/assistant', async (req, res) => {
   return res.status(200).json({ response: reply, action, actionArg });
 });
 
+// ── STATIC FILE SERVING ───────────────────────────────────────────────────────
+app.get('/style.css', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'style.css'));
+});
+
+app.get('/script.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'script.js'));
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
+});
+
 // ── EXPORT (NO app.listen — Vercel handles that) ──────────────────────────────
 module.exports = app;
