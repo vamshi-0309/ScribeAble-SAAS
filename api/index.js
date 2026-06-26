@@ -203,5 +203,11 @@ app.post('/api/assistant', async (req, res) => {
   return res.status(200).json({ response: reply, action, actionArg });
 });
 
+// ── STATIC FILES & CATCH-ALL ──────────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, '..')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
+});
+
 // ── EXPORT (NO app.listen — Vercel handles that) ──────────────────────────────
 module.exports = app;
