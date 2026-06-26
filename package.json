@@ -2,6 +2,7 @@
   "name": "scribeconnect",
   "version": "1.0.0",
   "description": "Find Your Exam Scribe – Accessible support platform",
+  "main": "api/index.js",
   "scripts": {
     "start": "node server.js"
   },
