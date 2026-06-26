@@ -5,9 +5,23 @@ const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const initSqlJs = require('sql.js');
 
+// Load .env file manually if it exists
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const [key, ...valueParts] = trimmed.split('=');
+    if (key && valueParts.length > 0) {
+      process.env[key.trim()] = valueParts.join('=').trim();
+    }
+  });
+}
+
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const PORT       = 3000;
-const JWT_SECRET = 'scribeconnect_jwt_secret_change_in_production_2024';
+const PORT       = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'scribeconnect_jwt_secret_change_in_production_2024';
 const isVercel   = process.env.VERCEL === '1' || process.env.NOW_REGION !== undefined;
 const DB_FILE    = isVercel
   ? path.join('/tmp', 'scribeconnect.db')
@@ -29,7 +43,9 @@ const MIME = {
 let db;
 
 async function initDB() {
-  const SQL = await initSqlJs();
+  const SQL = await initSqlJs({
+    locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/${filename}`
+  });
 
   if (isVercel) {
     const bundledDbPath = path.join(__dirname, '..', 'scribeconnect.db');
