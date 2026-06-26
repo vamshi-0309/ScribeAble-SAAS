@@ -3,30 +3,36 @@ const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const initSqlJs = require('sql.js');
+const { createClient } = require('@supabase/supabase-js');
 
-// Load .env file manually if it exists
+// ── LOAD .env (local dev only) ────────────────────────────────────────────────
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  envContent.split('\n').forEach(line => {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return;
-    const [key, ...valueParts] = trimmed.split('=');
-    if (key && valueParts.length > 0) {
-      process.env[key.trim()] = valueParts.join('=').trim();
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (!process.env[key]) process.env[key] = val;
     }
   });
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const PORT       = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'scribeconnect_jwt_secret_change_in_production_2024';
-const isVercel   = process.env.VERCEL === '1' || process.env.NOW_REGION !== undefined;
-const DB_FILE    = isVercel
-  ? path.join('/tmp', 'scribeconnect.db')
-  : path.join(__dirname, '..', 'scribeconnect.db');
+const PORT        = process.env.PORT || 3000;
+const JWT_SECRET  = process.env.JWT_SECRET || 'scribeconnect_jwt_secret_change_in_production_2024';
+const SUPABASE_URL  = process.env.SUPABASE_URL;
+const SUPABASE_KEY  = process.env.SUPABASE_ANON_KEY;
 const SALT_ROUNDS = 10;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables!');
+  if (process.env.VERCEL) process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MIME = {
   '.html': 'text/html',
@@ -39,99 +45,7 @@ const MIME = {
   '.ico' : 'image/x-icon'
 };
 
-// ── DATABASE (sql.js – pure WASM SQLite) ──────────────────────────────────────
-let db;
-
-async function initDB() {
-  const SQL = await initSqlJs({
-    locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/${filename}`
-  });
-
-  if (isVercel) {
-    const bundledDbPath = path.join(__dirname, '..', 'scribeconnect.db');
-    if (!fs.existsSync(DB_FILE) && fs.existsSync(bundledDbPath)) {
-      try {
-        fs.copyFileSync(bundledDbPath, DB_FILE);
-        console.log('📋 Copied bundled database to /tmp:', DB_FILE);
-      } catch (copyErr) {
-        console.error('Failed to copy database to /tmp:', copyErr);
-      }
-    }
-  }
-
-  if (fs.existsSync(DB_FILE)) {
-    const data = fs.readFileSync(DB_FILE);
-    db = new SQL.Database(data);
-    console.log('📂 Loaded existing database from', DB_FILE);
-  } else {
-    db = new SQL.Database();
-    console.log('🆕 Created new database at', DB_FILE);
-  }
-
-  // Create tables
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      name         TEXT    NOT NULL,
-      email        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
-      password_hash TEXT   NOT NULL,
-      created_at   TEXT    DEFAULT (datetime('now'))
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id    INTEGER NOT NULL,
-      token      TEXT    NOT NULL UNIQUE,
-      created_at TEXT    DEFAULT (datetime('now')),
-      expires_at TEXT    NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  saveDB();
-  console.log('✅ Database ready');
-}
-
-function saveDB() {
-  try {
-    const data = db.export();
-    fs.writeFileSync(DB_FILE, Buffer.from(data));
-  } catch (err) {
-    console.error('Failed to write database file:', err.message);
-  }
-}
-
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-function dbGet(sql, params = []) {
-  try {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    if (stmt.step()) {
-      const row = stmt.getAsObject();
-      stmt.free();
-      return row;
-    }
-    stmt.free();
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-// ── HELPERS continued ─────────────────────────────────────────────────────────
-function dbRun(sql, params = []) {
-  try {
-    db.run(sql, params);
-    saveDB();
-    return true;
-  } catch (e) {
-    console.error('DB error:', e.message);
-    return false;
-  }
-}
-
 function jsonResponse(res, statusCode, body) {
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
@@ -166,8 +80,8 @@ function verifyToken(token) {
   }
 }
 
-function expireOldSessions() {
-  dbRun(`DELETE FROM sessions WHERE expires_at < datetime('now')`);
+function expiresAt30Days() {
+  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 // ── ROUTE HANDLERS ────────────────────────────────────────────────────────────
@@ -178,28 +92,36 @@ async function handleSignup(req, res) {
 
   if (!name || !email || !password)
     return jsonResponse(res, 400, { error: 'Name, email and password are required.' });
-
   if (!email.includes('@'))
     return jsonResponse(res, 400, { error: 'Please enter a valid email address.' });
-
   if (password.length < 8)
     return jsonResponse(res, 400, { error: 'Password must be at least 8 characters.' });
 
-  const existing = dbGet('SELECT id FROM users WHERE email = ?', [email]);
+  // Check existing user
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .ilike('email', email.trim())
+    .maybeSingle();
+
   if (existing)
     return jsonResponse(res, 409, { error: 'An account with this email already exists.' });
 
-  const hash = await bcrypt.hash(password, SALT_ROUNDS);
-  const ok   = dbRun('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name.trim(), email.trim(), hash]);
+  const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-  if (!ok)
+  const { data: user, error: insertErr } = await supabase
+    .from('users')
+    .insert({ name: name.trim(), email: email.trim().toLowerCase(), password_hash })
+    .select('id, name, email')
+    .single();
+
+  if (insertErr || !user)
     return jsonResponse(res, 500, { error: 'Failed to create account. Please try again.' });
 
-  const user    = dbGet('SELECT id, name, email FROM users WHERE email = ?', [email]);
   const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const expires = expiresAt30Days();
 
-  dbRun('INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)', [user.id, token, expires]);
+  await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
 
   console.log(`✅ New user: ${user.email}`);
   return jsonResponse(res, 201, { token, user: { id: user.id, name: user.name, email: user.email } });
@@ -212,7 +134,12 @@ async function handleLogin(req, res) {
   if (!email || !password)
     return jsonResponse(res, 400, { error: 'Email and password are required.' });
 
-  const user = dbGet('SELECT id, name, email, password_hash FROM users WHERE email = ?', [email.trim()]);
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, name, email, password_hash')
+    .ilike('email', email.trim())
+    .maybeSingle();
+
   if (!user)
     return jsonResponse(res, 401, { error: 'No account found with this email.' });
 
@@ -220,40 +147,51 @@ async function handleLogin(req, res) {
   if (!match)
     return jsonResponse(res, 401, { error: 'Incorrect password. Please try again.' });
 
-  expireOldSessions();
+  // Clear expired sessions
+  await supabase.from('sessions').delete().lt('expires_at', new Date().toISOString());
 
   const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const expires = expiresAt30Days();
 
-  dbRun('INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)', [user.id, token, expires]);
+  await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
 
   console.log(`🔑 Login: ${user.email}`);
   return jsonResponse(res, 200, { token, user: { id: user.id, name: user.name, email: user.email } });
 }
 
-// GET /api/me  (validate token)
-function handleMe(req, res) {
+// GET /api/me
+async function handleMe(req, res) {
   const token = getBearerToken(req);
   if (!token) return jsonResponse(res, 401, { error: 'No token provided.' });
 
   const payload = verifyToken(token);
   if (!payload)  return jsonResponse(res, 401, { error: 'Invalid or expired token.' });
 
-  // Check token exists in sessions table (not logged out)
-  const session = dbGet('SELECT id FROM sessions WHERE token = ? AND expires_at > datetime(\'now\')', [token]);
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('token', token)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
   if (!session)  return jsonResponse(res, 401, { error: 'Session expired. Please log in again.' });
 
-  const user = dbGet('SELECT id, name, email FROM users WHERE id = ?', [payload.userId]);
-  if (!user)     return jsonResponse(res, 401, { error: 'User not found.' });
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, name, email')
+    .eq('id', payload.userId)
+    .maybeSingle();
+
+  if (!user) return jsonResponse(res, 401, { error: 'User not found.' });
 
   return jsonResponse(res, 200, { user: { id: user.id, name: user.name, email: user.email } });
 }
 
 // POST /api/logout
-function handleLogout(req, res) {
+async function handleLogout(req, res) {
   const token = getBearerToken(req);
   if (token) {
-    dbRun('DELETE FROM sessions WHERE token = ?', [token]);
+    await supabase.from('sessions').delete().eq('token', token);
     console.log('👋 User logged out');
   }
   return jsonResponse(res, 200, { message: 'Logged out successfully.' });
@@ -262,12 +200,11 @@ function handleLogout(req, res) {
 // POST /api/assistant
 async function handleAssistant(req, res) {
   const { transcript } = await parseBody(req);
-  if (!transcript) {
+  if (!transcript)
     return jsonResponse(res, 400, { error: 'Transcript is required.' });
-  }
 
   const lower = transcript.toLowerCase().trim();
-  let reply = "";
+  let reply = '';
   let action = null;
   let actionArg = null;
 
@@ -276,63 +213,43 @@ async function handleAssistant(req, res) {
     action = "help";
   } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower.includes('good morning') || lower.includes('good afternoon')) {
     reply = "Hello there! I am your ScribeConnect assistant. I am here to help you navigate the platform, find exam scribes, or volunteer. What can I do for you today?";
-  } else if (lower.includes('find scribe') || lower.includes('need scribe') || lower.includes('request scribe') || lower.includes('get scribe') || lower.includes('book scribe') || lower.includes('look for scribe')) {
-    reply = "I would be happy to help you find a scribe. I am opening the request form now. Please tell me the subject, exam date, and location so I can match you with available volunteers.";
-    action = "openModal";
-    actionArg = "seeker";
-  } else if (lower.includes('volunteer') || lower.includes('register') || lower.includes('become scribe') || lower.includes('want to volunteer') || lower.includes('be a scribe')) {
-    reply = "That is wonderful! Volunteers are the heart of ScribeConnect. I am launching the volunteer registration form. You can select your subjects and availability to get started.";
-    action = "openModal";
-    actionArg = "volunteer";
+  } else if (lower.includes('find scribe') || lower.includes('need scribe') || lower.includes('request scribe') || lower.includes('get scribe') || lower.includes('book scribe')) {
+    reply = "I would be happy to help you find a scribe. I am opening the request form now.";
+    action = "openModal"; actionArg = "seeker";
+  } else if (lower.includes('volunteer') || lower.includes('register') || lower.includes('become scribe') || lower.includes('want to volunteer')) {
+    reply = "That is wonderful! Volunteers are the heart of ScribeConnect. I am launching the volunteer registration form.";
+    action = "openModal"; actionArg = "volunteer";
   } else if (lower.includes('how it works') || lower.includes('how does it work') || lower.includes('explain') || lower.includes('steps')) {
-    reply = "ScribeConnect is very easy to use. First, you choose your role and sign up. Then, candidates submit exam details and we match them with nearby verified scribes in under five minutes. Finally, you connect securely. Is there any specific step you'd like me to explain?";
-    action = "scrollTo";
-    actionArg = "#how";
+    reply = "ScribeConnect is very easy to use. First, choose your role and sign up. Then, submit exam details and we match you with nearby scribes in under five minutes.";
+    action = "scrollTo"; actionArg = "#how";
   } else if (lower.includes('dark mode') || lower.includes('dark theme') || lower.includes('go dark') || lower.includes('switch to dark')) {
     reply = "Switching to dark theme for a more comfortable reading experience.";
-    action = "theme";
-    actionArg = "dark";
+    action = "theme"; actionArg = "dark";
   } else if (lower.includes('light mode') || lower.includes('light theme') || lower.includes('switch to light')) {
     reply = "Switching to light theme.";
-    action = "theme";
-    actionArg = "light";
+    action = "theme"; actionArg = "light";
   } else if (lower.includes('stop reading') || lower.includes('be quiet') || lower.includes('silence')) {
-    reply = "Stopping reading.";
-    action = "stopReading";
+    reply = "Stopping reading."; action = "stopReading";
   } else if (lower.includes('sign out') || lower.includes('logout') || lower.includes('exit')) {
-    reply = "Logging you out from ScribeConnect. Have a great day!";
-    action = "logout";
+    reply = "Logging you out from ScribeConnect. Have a great day!"; action = "logout";
   } else if (lower.includes('filter maths') || lower.includes('maths scribes')) {
-    reply = "Filtering to show available scribes with expertise in Mathematics.";
-    action = "filter";
-    actionArg = "maths";
+    reply = "Filtering to show scribes with Maths expertise."; action = "filter"; actionArg = "maths";
   } else if (lower.includes('filter science') || lower.includes('science scribes')) {
-    reply = "Filtering to show available scribes with expertise in Science.";
-    action = "filter";
-    actionArg = "science";
+    reply = "Filtering to show scribes with Science expertise."; action = "filter"; actionArg = "science";
   } else if (lower.includes('isl scribes') || lower.includes('sign language')) {
-    reply = "Filtering to show scribes with Indian Sign Language skills.";
-    action = "filter";
-    actionArg = "isl";
+    reply = "Filtering to show scribes with Indian Sign Language skills."; action = "filter"; actionArg = "isl";
   } else if (lower.includes('free scribes') || lower.includes('free volunteers') || lower.includes('show free')) {
-    reply = "Filtering to show free volunteers only.";
-    action = "filter";
-    actionArg = "volunteer";
+    reply = "Filtering to show free volunteers only."; action = "filter"; actionArg = "volunteer";
   } else if (lower.includes('all scribes') || lower.includes('show all') || lower.includes('clear filter')) {
-    reply = "Clearing filters to show all verified scribes.";
-    action = "filter";
-    actionArg = "all";
+    reply = "Clearing filters to show all verified scribes."; action = "filter"; actionArg = "all";
   } else if (lower.includes('close') || lower.includes('cancel') || lower.includes('dismiss')) {
-    reply = "Closing all open dialogues.";
-    action = "closeModal";
-  } else if (lower.includes('cost') || lower.includes('price') || lower.includes('how much') || lower.includes('free')) {
-    reply = "ScribeConnect offers both free volunteers who assist as social service, and professional paid scribes whose rates typically range from one hundred to one thousand rupees per hour. You can search and filter for free volunteers in the budget options.";
-  } else if (lower.includes('how many scribes') || lower.includes('scribes available') || lower.includes('cities')) {
-    reply = "We have over twelve hundred verified scribes across forty-two cities in India. The average response time is just under five minutes.";
+    reply = "Closing all open dialogues."; action = "closeModal";
+  } else if (lower.includes('cost') || lower.includes('price') || lower.includes('how much')) {
+    reply = "ScribeConnect offers both free volunteers and professional scribes (₹100–₹1000/hr). Filter by 'free' to see volunteers.";
   } else if (lower.includes('privacy') || lower.includes('safe') || lower.includes('security')) {
-    reply = "Privacy and safety are our top priorities. All profiles undergo database verification. Student profiles and venues are kept confidential and are only shared with matching scribes once mutual agreement is achieved.";
+    reply = "Privacy and safety are our top priorities. All profiles are verified and contact is shared only after mutual consent.";
   } else {
-    reply = `I heard you say: "${transcript}". As your virtual AI assistant, I can help you find exam scribes, register as a volunteer, navigate the site, or adjust accessibility settings like font sizes and high contrast. Please let me know what you would like to do.`;
+    reply = `I heard: "${transcript}". I can help you find scribes, register as a volunteer, navigate the site, or adjust accessibility settings.`;
   }
 
   return jsonResponse(res, 200, { response: reply, action, actionArg });
@@ -359,20 +276,7 @@ function serveStatic(req, res) {
 }
 
 // ── SERVERLESS HANDLER ────────────────────────────────────────────────────────
-let dbInitialized = false;
-let dbPromise = null;
-async function ensureDB() {
-  if (dbInitialized) return;
-  if (!dbPromise) {
-    dbPromise = initDB();
-  }
-  await dbPromise;
-  dbInitialized = true;
-}
-
 const handler = async (req, res) => {
-  await ensureDB();
-
   const { method, url } = req;
   const route = url.split('?')[0];
 
@@ -388,30 +292,28 @@ const handler = async (req, res) => {
     return res.end();
   }
 
-  // API routes
-  if (method === 'POST' && route === '/api/signup')  return handleSignup(req, res);
-  if (method === 'POST' && route === '/api/login')   return handleLogin(req, res);
-  if (method === 'GET'  && route === '/api/me')      return handleMe(req, res);
-  if (method === 'POST' && route === '/api/logout')  return handleLogout(req, res);
-  if (method === 'POST' && route === '/api/assistant') return handleAssistant(req, res);
+  try {
+    if (method === 'POST' && route === '/api/signup')    return await handleSignup(req, res);
+    if (method === 'POST' && route === '/api/login')     return await handleLogin(req, res);
+    if (method === 'GET'  && route === '/api/me')        return await handleMe(req, res);
+    if (method === 'POST' && route === '/api/logout')    return await handleLogout(req, res);
+    if (method === 'POST' && route === '/api/assistant') return await handleAssistant(req, res);
+  } catch (err) {
+    console.error('Handler error:', err);
+    return jsonResponse(res, 500, { error: 'Internal server error.' });
+  }
 
   // Static files
   serveStatic(req, res);
 };
 
-// ── BOOT (only when run directly) ─────────────────────────────────────────────
+// ── LOCAL DEV BOOT ────────────────────────────────────────────────────────────
 if (require.main === module) {
-  initDB().then(() => {
-    const server = http.createServer(handler);
-    server.listen(PORT, () => {
-      console.log(`\n🚀 ScribeConnect server running at http://localhost:${PORT}`);
-      console.log('   Auth endpoints: /api/signup  /api/login  /api/me  /api/logout\n');
-    });
-  }).catch(err => {
-    console.error('❌ Failed to initialise database:', err);
-    process.exit(1);
+  const server = http.createServer(handler);
+  server.listen(PORT, () => {
+    console.log(`\n🚀 ScribeConnect running at http://localhost:${PORT}`);
+    console.log('   Auth: /api/signup  /api/login  /api/me  /api/logout\n');
   });
 }
 
-// Export for Vercel Serverless
 module.exports = handler;
