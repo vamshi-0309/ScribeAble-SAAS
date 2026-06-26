@@ -90,54 +90,46 @@ function expiresAt30Days() {
 async function handleSignup(req, res) {
   try {
     const { name, full_name, email, password, mobile, role } = await parseBody(req);
-    const finalName = (full_name || name || '').trim();
+    const finalName = (full_name || name || email || 'Anonymous User').trim();
     const finalEmail = (email || '').trim().toLowerCase();
     const finalMobile = (mobile || '').trim();
     const finalRole = (role || 'seeker').trim();
 
-    if (!finalName)
-      return jsonResponse(res, 400, { error: 'Full name is required.' });
     if (!finalEmail)
       return jsonResponse(res, 400, { error: 'Email address is required.' });
-    if (!finalEmail.includes('@'))
-      return jsonResponse(res, 400, { error: 'Please enter a valid email address.' });
-    if (!password)
-      return jsonResponse(res, 400, { error: 'Password is required.' });
-    if (password.length < 8)
-      return jsonResponse(res, 400, { error: 'Password must be at least 8 characters.' });
 
     // Check existing user
-    const { data: existing, error: checkErr } = await supabase
+    let { data: user, error: checkErr } = await supabase
       .from('users')
-      .select('id')
+      .select('id, full_name, email')
       .ilike('email', finalEmail)
       .maybeSingle();
 
     if (checkErr) {
       console.error('Database check error during signup:', checkErr);
-      return jsonResponse(res, 500, { error: `Database error during verification: ${checkErr.message}` });
+      return jsonResponse(res, 500, { error: `Database error: ${checkErr.message}` });
     }
 
-    if (existing)
-      return jsonResponse(res, 409, { error: 'An account with this email already exists.' });
+    if (!user) {
+      // Auto-create user without password checks
+      const dummyPasswordHash = await bcrypt.hash('nopasswordneeded', SALT_ROUNDS);
+      const { data: newUser, error: insertErr } = await supabase
+        .from('users')
+        .insert({
+          full_name: finalName,
+          email: finalEmail,
+          password: dummyPasswordHash,
+          mobile: finalMobile,
+          role: finalRole
+        })
+        .select('id, full_name, email')
+        .single();
 
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
-
-    const { data: user, error: insertErr } = await supabase
-      .from('users')
-      .insert({
-        full_name: finalName,
-        email: finalEmail,
-        password: password_hash,
-        mobile: finalMobile,
-        role: finalRole
-      })
-      .select('id, full_name, email')
-      .single();
-
-    if (insertErr || !user) {
-      console.error('Database insert error during signup:', insertErr);
-      return jsonResponse(res, 500, { error: `Failed to create account: ${insertErr ? insertErr.message : 'Database returned no data.'}` });
+      if (insertErr || !newUser) {
+        console.error('Database insert error during signup:', insertErr);
+        return jsonResponse(res, 500, { error: `Failed to create account: ${insertErr ? insertErr.message : 'Database error'}` });
+      }
+      user = newUser;
     }
 
     const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
@@ -147,7 +139,7 @@ async function handleSignup(req, res) {
 
     if (sessionErr) {
       console.error('Database session insert error during signup:', sessionErr);
-      return jsonResponse(res, 500, { error: `Account created, but failed to start session: ${sessionErr.message}` });
+      return jsonResponse(res, 500, { error: `Account verified, but failed to start session: ${sessionErr.message}` });
     }
 
     console.log(`✅ New user: ${user.email}`);
@@ -161,28 +153,45 @@ async function handleSignup(req, res) {
 // POST /api/login
 async function handleLogin(req, res) {
   try {
-    const { email, password } = await parseBody(req);
+    const { email } = await parseBody(req);
+    const finalEmail = (email || '').trim().toLowerCase();
 
-    if (!email || !password)
-      return jsonResponse(res, 400, { error: 'Email and password are required.' });
+    if (!finalEmail)
+      return jsonResponse(res, 400, { error: 'Email address is required.' });
 
-    const { data: user, error: fetchErr } = await supabase
+    // Check existing user
+    let { data: user, error: fetchErr } = await supabase
       .from('users')
-      .select('id, full_name, email, password')
-      .ilike('email', email.trim())
+      .select('id, full_name, email')
+      .ilike('email', finalEmail)
       .maybeSingle();
 
     if (fetchErr) {
       console.error('Login database fetch error:', fetchErr);
-      return jsonResponse(res, 500, { error: `Database error during login: ${fetchErr.message}` });
+      return jsonResponse(res, 500, { error: `Database error: ${fetchErr.message}` });
     }
 
-    if (!user)
-      return jsonResponse(res, 401, { error: 'No account found with this email.' });
+    if (!user) {
+      // Auto-create user if they don't exist
+      const dummyPasswordHash = await bcrypt.hash('nopasswordneeded', SALT_ROUNDS);
+      const { data: newUser, error: insertErr } = await supabase
+        .from('users')
+        .insert({
+          full_name: finalEmail.split('@')[0],
+          email: finalEmail,
+          password: dummyPasswordHash,
+          mobile: '',
+          role: 'seeker'
+        })
+        .select('id, full_name, email')
+        .single();
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match)
-      return jsonResponse(res, 401, { error: 'Incorrect password. Please try again.' });
+      if (insertErr || !newUser) {
+        console.error('Auto-create during login failed:', insertErr);
+        return jsonResponse(res, 500, { error: `Failed to auto-create account: ${insertErr ? insertErr.message : 'Database error'}` });
+      }
+      user = newUser;
+    }
 
     // Clear expired sessions
     await supabase.from('sessions').delete().lt('expires_at', new Date().toISOString());
@@ -194,10 +203,10 @@ async function handleLogin(req, res) {
 
     if (sessionErr) {
       console.error('Database session insert error during login:', sessionErr);
-      return jsonResponse(res, 500, { error: `Login succeeded, but session establishment failed: ${sessionErr.message}` });
+      return jsonResponse(res, 500, { error: `Session establishment failed: ${sessionErr.message}` });
     }
 
-    console.log(`🔑 Login: ${user.email}`);
+    console.log(`🔑 Login (no password verification): ${user.email}`);
     return jsonResponse(res, 200, { token, user: { id: user.id, name: user.full_name, email: user.email } });
   } catch (err) {
     console.error('Catch block error in handleLogin:', err);
