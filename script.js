@@ -207,7 +207,7 @@ async function doSignup() {
   const phone = document.getElementById('su-phone').value.trim();
   const password = document.getElementById('su-pw').value;
   
-  if (!name || !email || !password) {
+  if (!name || !email || !phone || !password) {
     showError('Please fill in all required fields.');
     return;
   }
@@ -319,15 +319,6 @@ async function loginWithGoogle() {
   if (error) {
     showError(error.message);
   }
-}
-
-function voiceLogin() {
-  speak('Please say your name to sign in with voice.');
-  showToast('Say your name...');
-  listenOnce(function (t) {
-    closeToast();
-    if (t) launchApp(t, true);
-  });
 }
 
 // ── ACCESSIBILITY ─────────────────────
@@ -695,7 +686,7 @@ function updateVoiceBtnUI(state) {
   }
 }
 
-// ── SINGLE-SHOT LISTENER (for voiceFill + voiceLogin) ────
+// ── SINGLE-SHOT LISTENER (for voiceFill) ────
 // Separate from push-to-talk; used for inline form filling only.
 function listenOnce(cb) {
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {

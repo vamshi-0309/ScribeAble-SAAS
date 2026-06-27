@@ -82,7 +82,6 @@
         </div>
         <a href="#" class="forgot" onclick="forgotPw(event)">Forgot password?</a>
         <button class="login-btn" onclick="doLogin()" aria-label="Sign in to ScribeAble">Sign In →</button>
-        <button class="voice-login-btn" onclick="voiceLogin()" aria-label="Sign in using voice">🎙️ Sign in with Voice</button>
         <div class="divider">or continue with</div>
         <div class="social-btns">
           <button class="social-btn" onclick="socialLogin('Google')" aria-label="Sign in with Google">
@@ -112,7 +111,7 @@
           </div>
         </div>
         <div class="lfield">
-          <label for="su-phone">Mobile number</label>
+          <label for="su-phone">Mobile number <span style="color:var(--teal)">*</span></label>
           <div class="input-icon-wrap">
             <span class="input-icon" aria-hidden="true">📱</span>
             <input type="tel" id="su-phone" placeholder="+91 98765 43210" autocomplete="tel" inputmode="tel">
@@ -127,7 +126,6 @@
           </div>
         </div>
         <button class="login-btn" onclick="doSignup()" aria-label="Create your ScribeAble account">Create Account →</button>
-        <button class="voice-login-btn" onclick="voiceLogin()" aria-label="Register using voice">🎙️ Register with Voice</button>
       </div>
 
       <div class="login-switch" id="auth-switch-text">

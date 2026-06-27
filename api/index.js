@@ -62,56 +62,71 @@ function expiresAt30Days() {
 app.post('/api/signup', async (req, res) => {
   try {
     const { name, full_name, email, password, mobile, role } = req.body || {};
-    const finalName = (full_name || name || email || 'Anonymous User').trim();
+    const finalName = (full_name || name || '').trim();
     const finalEmail = (email || '').trim().toLowerCase();
     const finalMobile = (mobile || '').trim();
     const finalRole = (role || 'seeker').trim();
 
-    if (!finalEmail)
-      return res.status(400).json({ error: 'Email address is required.' });
+    if (!finalName || !finalEmail || !password || !finalMobile) {
+      return res.status(400).json({ error: 'All fields (full_name, email, password, mobile) are required.' });
+    }
+
+    if (!finalEmail.includes('@')) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
 
     // Check existing user
-    let { data: user, error: checkErr } = await supabase
-      .from('users').select('id, full_name, email').ilike('email', finalEmail).maybeSingle();
+    let { data: existingUser, error: checkErr } = await supabase
+      .from('users')
+      .select('id, email')
+      .ilike('email', finalEmail)
+      .maybeSingle();
 
     if (checkErr) {
       console.error('Database check error during signup:', checkErr);
       return res.status(500).json({ error: `Database error: ${checkErr.message}` });
     }
 
-    if (!user) {
-      // Auto-create user without password checks
-      const dummyPasswordHash = await bcrypt.hash('nopasswordneeded', SALT_ROUNDS);
-      const { data: newUser, error: insertErr } = await supabase
-        .from('users')
-        .insert({
-          full_name: finalName,
-          email: finalEmail,
-          password: dummyPasswordHash,
-          mobile: finalMobile,
-          role: finalRole
-        })
-        .select('id, full_name, email')
-        .single();
-
-      if (insertErr || !newUser) {
-        console.error('Database insert error during signup:', insertErr);
-        return res.status(500).json({ error: `Failed to create account: ${insertErr ? insertErr.message : 'Database error'}` });
-      }
-      user = newUser;
+    if (existingUser) {
+      return res.status(400).json({ error: 'An account with this email address already exists.' });
     }
 
-    const token   = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+    // Hash the password
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Insert user
+    const { data: newUser, error: insertErr } = await supabase
+      .from('users')
+      .insert({
+        full_name: finalName,
+        email: finalEmail,
+        password: passwordHash,
+        mobile: finalMobile,
+        role: finalRole
+      })
+      .select('id, full_name, email')
+      .single();
+
+    if (insertErr || !newUser) {
+      console.error('Database insert error during signup:', insertErr);
+      return res.status(500).json({ error: `Failed to create account: ${insertErr ? insertErr.message : 'Database error'}` });
+    }
+
+    const token   = jwt.sign({ userId: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '30d' });
     const expires = expiresAt30Days();
-    const { error: sessionErr } = await supabase.from('sessions').insert({ user_id: user.id, token, expires_at: expires });
+    const { error: sessionErr } = await supabase.from('sessions').insert({ user_id: newUser.id, token, expires_at: expires });
 
     if (sessionErr) {
       console.error('Database session insert error during signup:', sessionErr);
       return res.status(500).json({ error: `Account verified, but failed to start session: ${sessionErr.message}` });
     }
 
-    console.log(`✅ New user: ${user.email}`);
-    return res.status(201).json({ token, user: { id: user.id, name: user.full_name, email: user.email } });
+    console.log(`✅ New user: ${newUser.email}`);
+    return res.status(201).json({ token, user: { id: newUser.id, name: newUser.full_name, email: newUser.email } });
   } catch (err) {
     console.error('Catch block error in signup route:', err);
     return res.status(500).json({ error: `Internal server error: ${err.message || err}` });
@@ -121,16 +136,18 @@ app.post('/api/signup', async (req, res) => {
 // ── POST /api/login ───────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
   try {
-    const { email } = req.body || {};
+    const { email, password } = req.body || {};
     const finalEmail = (email || '').trim().toLowerCase();
 
-    if (!finalEmail)
-      return res.status(400).json({ error: 'Email address is required.' });
+    if (!finalEmail || !password)
+      return res.status(400).json({ error: 'Email and password are required.' });
 
-    // Check existing user
+    // Check existing user - must select password field too!
     let { data: user, error: fetchErr } = await supabase
-      .from('users').select('id, full_name, email')
-      .ilike('email', finalEmail).maybeSingle();
+      .from('users')
+      .select('id, full_name, email, password')
+      .ilike('email', finalEmail)
+      .maybeSingle();
 
     if (fetchErr) {
       console.error('Login database fetch error:', fetchErr);
@@ -138,25 +155,13 @@ app.post('/api/login', async (req, res) => {
     }
 
     if (!user) {
-      // Auto-create user if they don't exist
-      const dummyPasswordHash = await bcrypt.hash('nopasswordneeded', SALT_ROUNDS);
-      const { data: newUser, error: insertErr } = await supabase
-        .from('users')
-        .insert({
-          full_name: finalEmail.split('@')[0],
-          email: finalEmail,
-          password: dummyPasswordHash,
-          mobile: '',
-          role: 'seeker'
-        })
-        .select('id, full_name, email')
-        .single();
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
 
-      if (insertErr || !newUser) {
-        console.error('Auto-create during login failed:', insertErr);
-        return res.status(500).json({ error: `Failed to auto-create account: ${insertErr ? insertErr.message : 'Database error'}` });
-      }
-      user = newUser;
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
     await supabase.from('sessions').delete().lt('expires_at', new Date().toISOString());
@@ -170,7 +175,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(500).json({ error: `Session establishment failed: ${sessionErr.message}` });
     }
 
-    console.log(`🔑 Login (no password verification): ${user.email}`);
+    console.log(`🔑 Login: ${user.email}`);
     return res.status(200).json({ token, user: { id: user.id, name: user.full_name, email: user.email } });
   } catch (err) {
     console.error('Catch block error in login route:', err);

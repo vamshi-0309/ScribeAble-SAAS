@@ -14,7 +14,7 @@ git add .
 
 echo.
 echo Committing files...
-git commit -m "Fix Vercel 500 error: add api/server.js, vercel.json routing, CDN WASM fix, .env support"
+git commit -m "Security fix: Revert authentication bypass, restore proper email and password validation"
 
 echo.
 echo Setting branch to main...
